@@ -4,7 +4,7 @@ from docx import Document
 from pathlib import Path
 import os
 
-from nltk.tokenize import sent_tokenize
+from nltk.tokenize import sent_tokenize, word_tokenize
 
 import re
 
@@ -14,6 +14,7 @@ suffixes = "(Inc|Ltd|Jr|Sr|Co)"
 starters = "(Mr|Mrs|Ms|Dr|He\s|She\s|It\s|They\s|Their\s|Our\s|We\s|But\s|However\s|That\s|This\s|Wherever)"
 acronyms = "([A-Z][.][A-Z][.](?:[A-Z][.])?)"
 websites = "[.](com|net|org|io|gov)"
+punctuation = re.compile("('|\"|!|\.|,|\?|-|/|;|:|”|“)")
 
 def split_into_sentences(text):
     text = " " + text + "  "
@@ -52,8 +53,21 @@ def split_into_sentences(text):
     return returned_sentences
 
 class Sentence:
+
+    word_map: dict[str, bool]
+
     def __init__(self, literal:str):
         self.literal = literal
+        self.build_word_map(self.literal)
+
+    def build_word_map(self, literal):
+        self.word_map: dict[str, bool] = {}
+        words = word_tokenize(literal)
+        for word in words:
+            if not punctuation.match(word):
+                self.word_map[word] = True
+        
+
     
 
 resources_path = os.path.join(Path(__file__).parent.parent.parent, "resources\\")
@@ -69,6 +83,12 @@ for paragraph in book.paragraphs:
     text = paragraph.text.strip()
     sentences += split_into_sentences(text)
 
+mapped_sentences: list[Sentence] = []
+for sentence in sentences:
+    mapped_sentences.append(Sentence(sentence))
+
 for i in range(300):
-    print(sentences[i])
+    if "mundane" in mapped_sentences[i].word_map or "mundanes" in mapped_sentences[i].word_map:
+        print(mapped_sentences[i].literal)
+
 
