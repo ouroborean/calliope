@@ -14,6 +14,7 @@ suffixes = "(Inc|Ltd|Jr|Sr|Co)"
 starters = "(Mr|Mrs|Ms|Dr|He\s|She\s|It\s|They\s|Their\s|Our\s|We\s|But\s|However\s|That\s|This\s|Wherever)"
 acronyms = "([A-Z][.][A-Z][.](?:[A-Z][.])?)"
 websites = "[.](com|net|org|io|gov)"
+ellipses = "\.\.\."
 punctuation = re.compile("('|\"|!|\.|,|\?|-|/|;|:|”|“)")
 
 def split_into_sentences(text):
@@ -29,6 +30,7 @@ def split_into_sentences(text):
     text = re.sub(" "+suffixes+"[.] "+starters," \\1<stop> \\2",text)
     text = re.sub(" "+suffixes+"[.]"," \\1<prd>",text)
     text = re.sub(" " + alphabets + "[.]"," \\1<prd>",text)
+    text = re.sub(ellipses, "<ellipses>", text)
     if "”" in text: text = text.replace("”","\"")
     if "“" in text: text = text.replace("“", "\"")
     if "\"" in text: text = text.replace(".\"","\".")
@@ -40,6 +42,7 @@ def split_into_sentences(text):
     text = text.replace("!","!<stop>")
     text = text.replace("<prd>",".")
     text = text.replace("<endhyp>", "-<stop>")
+    text = text.replace("<ellipses>", "...")
     sentences = text.split("<stop>")
     sentences = sentences[:-1]
     sentences = [s.strip() for s in sentences]
@@ -55,15 +58,21 @@ def split_into_sentences(text):
 class Sentence:
 
     word_map: dict[str, bool]
+    complexity: int
 
     def __init__(self, literal:str):
         self.literal = literal
+        self.complexity = 1
+
+
         self.build_word_map(self.literal)
 
     def build_word_map(self, literal):
         self.word_map: dict[str, bool] = {}
         words = word_tokenize(literal)
         for word in words:
+            if word == ",":
+                self.complexity += 1
             if not punctuation.match(word):
                 self.word_map[word] = True
         
@@ -88,7 +97,7 @@ for sentence in sentences:
     mapped_sentences.append(Sentence(sentence))
 
 for i in range(300):
-    if "mundane" in mapped_sentences[i].word_map or "mundanes" in mapped_sentences[i].word_map:
+    if "there" in mapped_sentences[i].word_map:
         print(mapped_sentences[i].literal)
 
 
