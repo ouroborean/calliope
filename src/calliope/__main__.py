@@ -1,3 +1,4 @@
+from typing import Iterator
 from nltk.corpus import brown
 import nltk
 from docx import Document
@@ -75,8 +76,8 @@ class Collection:
     def add_sentences(self, sentences: list["Sentence"]):
         self.sentences = sentences
 
-    def find_word(self, word: str) -> list["Sentence"]:
-        return [sentence for sentence in self.sentences if word in sentence.word_set]
+    def find_word(self, word: str) -> Iterator["Sentence"]:
+        return (sentence for sentence in self.sentences if word in sentence.word_set)
 
     
 
@@ -119,6 +120,58 @@ class Sentence:
                 self.word_set.add(word)
 
 
+def expand_search_terms(collection: Collection, gathered_terms: list[Sentence]):
+    print("Expand search terms? (Y/N)")
+    term = input()
+    if term == "Y":
+        while True:
+            try:
+                term = int(input("Please select a search result to expand from: "))
+                if term <= len(gathered_terms) and term > 0:
+                    chosen_index = gathered_terms[term - 1].index
+                    print(chosen_index)
+                    break
+                else:
+                    print("Please select a valid search result to expand from!")
+            except ValueError:
+                print("Please enter a valid number!")
+        while True:
+            try:
+                up_range = int(input("Please enter upper range: "))
+                if chosen_index + up_range > len(collection.sentences):
+                    up_range = len(collection.sentences) - chosen_index
+                break
+            except ValueError:
+                print("Please enter a valid number!")
+        while True:
+            try:
+                low_range = int(input("Please enter a lower range: "))
+                if low_range > chosen_index:
+                    low_range = chosen_index
+                break
+            except ValueError:
+                print("Please enter a valid number!")
+        expanded_results = []
+        for i in range (low_range, 0, -1):
+            expanded_results.append(collection.sentences[chosen_index - i])
+        expanded_results.append(collection.sentences[chosen_index])
+        for i in range(1, up_range + 1):
+            expanded_results.append(collection.sentences[chosen_index + i])
+        
+        for sentence in expanded_results:
+            print(sentence.literal)
+
+
+def single_word_search(collection: Collection):
+    print("Input search term: ")
+    term = input()
+
+    search_terms = collection.find_word(term)
+    for i, sentence in enumerate(search_terms):
+        print(f"{i + 1}: {sentence.literal}")
+    
+    expand_search_terms(collection, list(collection.find_word(term)))
+
 resources_path = os.path.join(
     Path(__file__).parent.parent.parent, "resources\\")
 
@@ -141,7 +194,11 @@ mapped_sentences: list[Sentence] = [
 
 familiar.add_sentences(mapped_sentences)
 
-term = input()
 
-for sentence in familiar.find_word(term):
-    print(sentence.literal)
+term = ""
+
+while term != "EXIT":
+    print("Choose an operation: [Single Word Search - SEARCH][Multi Word Search - MULTI][Exit Program - EXIT]")
+    term = input()
+    if term == "SEARCH":
+        single_word_search(familiar)
