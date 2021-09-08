@@ -1,4 +1,4 @@
-from typing import Iterator
+from typing import Iterator, final
 from nltk.corpus import brown
 import nltk
 from docx import Document
@@ -105,10 +105,13 @@ class Sentence:
         self.build_word_map(self.literal)
 
     def has_word(self, literal) -> bool:
-        try:
-            return self.word_map[literal]
-        except LookupError:
-            return False
+        return literal in self.word_set
+
+    def has_any_term(self, terms: list[str]) -> bool:
+        for term in terms:
+            if self.has_word(term):
+                return True
+        return False
 
     def build_word_map(self, literal):
         words = word_tokenize(literal)
@@ -161,6 +164,19 @@ def expand_search_terms(collection: Collection, gathered_terms: list[Sentence]):
         for sentence in expanded_results:
             print(sentence.literal)
 
+def frustrate_map(satisfaction_map: dict[str, bool]) -> dict[str, bool]:
+    for term in satisfaction_map.keys():
+        if satisfaction_map[term] == True:
+            satisfaction_map[term] == False
+    return satisfaction_map
+
+def map_satisfied(satisfaction_map: dict[str, bool]) -> bool:
+    for term in satisfaction_map.keys():
+        if satisfaction_map[term] == True:
+            continue
+        else:
+            return False
+    return True
 
 def single_word_search(collection: Collection):
     print("Input search term: ")
@@ -171,6 +187,92 @@ def single_word_search(collection: Collection):
         print(f"{i + 1}: {sentence.literal}")
     
     expand_search_terms(collection, list(collection.find_word(term)))
+
+def multi_word_search(collection: Collection):
+    terms = input("Enter all search terms separated by a space: ").split()
+
+    for term in terms:
+        satisfaction_map = {term: False for term in terms}
+
+    while True:
+        try:
+            search_range = int(input("Enter search range: "))
+            break
+        except ValueError:
+            print("Please input a valid range!")
+    
+    print("Beginning search with terms: ")
+    for term in satisfaction_map.keys():
+        print(term)
+    input(f"Within range {search_range}")
+    
+    satisfactory_sets = []
+    for term in satisfaction_map.keys():
+        potential_matches = list(collection.find_word(term))
+        for sentence in potential_matches:
+            satisfaction_map[term] = True
+            upper_distance = search_range
+            lower_distance = search_range
+            lower_sentences = []
+            upper_sentences = []
+            sweeping_include = False
+            if lower_distance > sentence.index:
+                lower_distance = sentence.index
+            if upper_distance + sentence.index > len(collection.sentences):
+                upper_distance = len(collection.sentences) - sentence.index
+            while lower_distance > 0:
+                if collection.sentences[sentence.index - lower_distance].has_any_term(list(satisfaction_map.keys())) or sweeping_include:
+                    lower_sentences.append(collection.sentences[sentence.index - lower_distance])
+                    for subterm in satisfaction_map.keys():
+                        if collection.sentences[sentence.index - lower_distance].has_word(subterm):
+                            if not satisfaction_map[subterm]:
+                                satisfaction_map[subterm] = True
+
+                    sweeping_include = True
+                lower_distance -= 1
+            sweeping_include = False
+            while upper_distance > 0:
+                if collection.sentences[sentence.index + upper_distance].has_any_term(list(satisfaction_map.keys())) or sweeping_include:
+                    upper_sentences.append(collection.sentences[sentence.index + upper_distance])
+                    for subterm in satisfaction_map.keys():
+                        if collection.sentences[sentence.index + upper_distance].has_word(subterm):
+                            if not satisfaction_map[subterm]:
+                                
+                                satisfaction_map[subterm] = True
+                    sweeping_include = True
+                upper_distance -= 1
+            upper_sentences.reverse()
+
+            if map_satisfied(satisfaction_map):
+                final_set = lower_sentences
+                final_set.append(sentence)
+                final_set.extend(upper_sentences)
+                satisfactory_sets.append(final_set)
+            
+            for term in satisfaction_map.keys():
+                satisfaction_map[term] = False
+
+    for i, s_set in enumerate(satisfactory_sets):
+        if not subsumed_set(satisfactory_sets, i):
+            print(f"Printing set {i}:")
+            for sentence in s_set:
+                print(sentence.literal)
+
+
+def subsumed_set(set_of_sets: list[list[Sentence]], compared_index: int) -> bool:
+    
+    for sentence in set_of_sets[compared_index]:
+        if compared_index > 0:
+            if sentence in set_of_sets[compared_index - 1]:
+                continue
+            else:
+                return False
+        elif compared_index < len(set_of_sets) - 1:
+            if sentence in set_of_sets[compared_index + 1]:
+                continue
+            else:
+                return False
+    return True
 
 resources_path = os.path.join(
     Path(__file__).parent.parent.parent, "resources\\")
@@ -202,3 +304,5 @@ while term != "EXIT":
     term = input()
     if term == "SEARCH":
         single_word_search(familiar)
+    if term == "MULTI":
+        multi_word_search(familiar)
