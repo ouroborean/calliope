@@ -1,7 +1,8 @@
 from typing import Iterator, final
+from nltk import metrics
 from nltk.corpus import brown
 import nltk
-from docx import Document
+from docx import Document, opc
 from pathlib import Path
 import os
 import itertools
@@ -132,7 +133,6 @@ def expand_search_terms(collection: Collection, gathered_terms: list[Sentence]):
                 term = int(input("Please select a search result to expand from: "))
                 if term <= len(gathered_terms) and term > 0:
                     chosen_index = gathered_terms[term - 1].index
-                    print(chosen_index)
                     break
                 else:
                     print("Please select a valid search result to expand from!")
@@ -190,9 +190,8 @@ def single_word_search(collection: Collection):
 
 def multi_word_search(collection: Collection):
     terms = input("Enter all search terms separated by a space: ").split()
-
-    for term in terms:
-        satisfaction_map = {term: False for term in terms}
+    
+    satisfaction_map = {term: False for term in terms}
 
     while True:
         try:
@@ -258,6 +257,27 @@ def multi_word_search(collection: Collection):
             for sentence in s_set:
                 print(sentence.literal)
 
+def display_complexity(collection: Collection):
+    complexity_count: dict[int, int] = {}
+    total_complexity = 0
+    for sentence in collection.sentences:
+        if sentence.complexity in complexity_count.keys():
+            complexity_count[sentence.complexity] += 1
+        else:
+            complexity_count[sentence.complexity] = 1
+        total_complexity += sentence.complexity
+    average_complexity = "{:.2f}".format(total_complexity / len(collection.sentences))
+    print(f"Average complexity for Collection {collection.name}: {average_complexity}")
+    for complexity in complexity_count.keys():
+        print(f"Complexity {complexity} sentences: {complexity_count[complexity]}")
+
+def get_metrics(collection: Collection):
+    metric_type = ""
+    while metric_type != "EXIT":
+        metric_type = input(f"Input the type of metrics you would like to view for Collection {collection.name}:\n[Average Complexity - COMP][Exit to menu - EXIT]")
+        if metric_type == "COMP":
+            display_complexity(collection)
+
 
 def subsumed_set(set_of_sets: list[list[Sentence]], compared_index: int) -> bool:
     
@@ -277,16 +297,29 @@ def subsumed_set(set_of_sets: list[list[Sentence]], compared_index: int) -> bool
 resources_path = os.path.join(
     Path(__file__).parent.parent.parent, "resources\\")
 
-book = Document(resources_path + "Familiar, MK II.docx")
 
+
+
+book_title = ""
+while book_title != "EXIT":
+    book_title = input("Enter the name of a .txt or .docx file in the resources directory. Enter EXIT to exit.\n")
+    try:
+        book = Document(resources_path + book_title)
+        break
+    except opc.exceptions.PackageNotFoundError:
+        print("No such file found! Please try again.")
+if book_title == "EXIT":
+    exit()
 text = ""
 
 sentences: list[str] = list(
     itertools.chain.from_iterable(
         split_into_sentences(paragraph.text.strip()) for paragraph in book.paragraphs)
-)
+) 
 
-familiar = Collection("familiar")
+collection_name = input("Please input a name for this collection.")
+
+collection = Collection(collection_name)
 
 
 # [foo(x) for x in iterable]
@@ -294,15 +327,15 @@ mapped_sentences: list[Sentence] = [
     Sentence(sentence, i) for i, sentence in enumerate(sentences)
 ]
 
-familiar.add_sentences(mapped_sentences)
-
+collection.add_sentences(mapped_sentences)
 
 term = ""
 
 while term != "EXIT":
-    print("Choose an operation: [Single Word Search - SEARCH][Multi Word Search - MULTI][Exit Program - EXIT]")
-    term = input()
+    term = input("Choose an operation: [Single Word Search - SEARCH][Multi Word Search - MULTI][Get Metrics - METRIC][Exit Program - EXIT]\n")
     if term == "SEARCH":
-        single_word_search(familiar)
+        single_word_search(collection)
     if term == "MULTI":
-        multi_word_search(familiar)
+        multi_word_search(collection)
+    if term == "METRIC":
+        get_metrics(collection)
