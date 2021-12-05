@@ -18,7 +18,9 @@ starters = "(Mr|Mrs|Ms|Dr|He\s|She\s|It\s|They\s|Their\s|Our\s|We\s|But\s|Howeve
 acronyms = "([A-Z][.][A-Z][.](?:[A-Z][.])?)"
 websites = "[.](com|net|org|io|gov)"
 ellipses = "\.\.\."
-punctuation = re.compile("('|\"|!|\.|,|\?|-|/|;|:|”|“)")
+punctuation = re.compile("('|\"|!|\.|,|\?|-|/|;|:|”|“|’|`|``)")
+dynamics = re.compile("(VB|VBG|VBZ|VBD|VBP|VBZ)")
+descriptives = re.compile("(JJ|JJR|JJS|RB|RBR|RBS)")
 
 
 def split_into_sentences(text):
@@ -37,6 +39,8 @@ def split_into_sentences(text):
     text = re.sub(" " + suffixes + "[.]", " \\1<prd>", text)
     text = re.sub(" " + alphabets + "[.]", " \\1<prd>", text)
     text = re.sub(ellipses, "<ellipses>", text)
+
+    
     if "”" in text: text = text.replace("”", "\"")
     if "“" in text: text = text.replace("“", "\"")
     if "\"" in text: text = text.replace(".\"", "\".")
@@ -75,12 +79,6 @@ class Collection:
 
     def add_sentence(self, sentence: "Sentence"):
         self.sentences.append(sentence)
-        for word in word_tokenize(sentence.literal):
-            if not punctuation.match(word):
-                if word not in self.word_count.keys():
-                    self.word_count[word] = 1
-                else:
-                    self.word_count[word] += 1
 
     def add_sentences(self, sentences: list["Sentence"]):
         self.sentences = sentences
@@ -88,6 +86,12 @@ class Collection:
     def find_word(self, word: str) -> Iterator["Sentence"]:
         return (sentence for sentence in self.sentences
                 if word in sentence.word_set)
+
+    def add_word_to_count(self, word: str):
+        if not word.lower() in self.word_count.keys():
+            self.word_count[word.lower()] = 1
+        else:
+            self.word_count[word.lower()] += 1
 
     def expand_from_selection(self, range: int) -> list["Sentence"]:
         output = []
@@ -135,17 +139,6 @@ class Sentence:
                 self.complexity += 1
             if not punctuation.match(word):
                 self.word_set.add(word)
-                pos_tagged = nltk.pos_tag(word)
-                if pos_tagged[1] == "JJ" or pos_tagged[
-                        1] == "JJR" or pos_tagged[1] == "JJS" or pos_tagged[
-                            1] == "RB" or pos_tagged[1] == "RBR" or pos_tagged[
-                                1] == "RBS":
-                    self.adj_count += 1
-                if pos_tagged[1] == "VB" or pos_tagged[
-                        1] == "VBG" or pos_tagged[1] == "VBD" or pos_tagged[
-                            1] == "VBN" or pos_tagged[
-                                1] == "VBP" or pos_tagged[1] == "VBZ":
-                    self.verb_count += 1
 
 
 def expand_search_terms(collection: Collection,
@@ -323,13 +316,44 @@ def display_complexity(collection: Collection):
         )
 
 def display_dynamics(collection: Collection):
-    pass
+    verb_count = 0
+    dynamic_count = 0
+    for sentence in collection.sentences:
+        for word in nltk.pos_tag(word_tokenize(sentence.literal)):
+            if dynamics.match(word[1]):
+                   verb_count += 1
+                   sentence.verb_count += 1
+        if sentence.verb_count > 2 and sentence.complexity > 1:
+            dynamic_count += 1
+    formatted_average = "{:.2f}".format(verb_count / len(collection.sentences))
+    formatted_density_average = "{:.2f}".format(dynamic_count / len(collection.sentences))
+    print(f"Average verb count, by sentence: {formatted_average}")
+    print(f"Density of dynamic sentences (sentences with more than 2 verbs and a complexity of greater than 1): {formatted_density_average}")
 
 def display_descriptive(collection: Collection):
-    pass
+    adj_count = 0
+    descriptive_count = 0
+    for sentence in collection.sentences:
+        for word in nltk.pos_tag(word_tokenize(sentence.literal)):
+            if descriptives.match(word[1]):
+                   sentence.adj_count += 1
+                   adj_count += 1
+        if sentence.adj_count > 2:
+            descriptive_count += 1
+    formatted_average = "{:.2f}".format(adj_count / len(collection.sentences))
+    formatted_density_average = "{:.2f}".format(descriptive_count / len(collection.sentences))
+    print(f"Average adjective count, by sentence: {formatted_average}")
+    print(f"Density of descriptive sentences (sentences with more than 2 adjectives): {formatted_density_average}")
 
 def display_word_saturation(collection: Collection):
-    pass
+    print("Please wait while word saturation is calculated...")
+    for sentence in collection.sentences:
+        for word in sentence.word_set:
+            collection.add_word_to_count(word)
+    sorted_word_count = {k: v for k, v in sorted(collection.word_count.items(), key=lambda item: item[1])}
+    for word in sorted_word_count.keys():
+        print(f"{word} : {sorted_word_count[word]}")
+
 
 def get_metrics(collection: Collection):
     metric_type = ""
@@ -338,15 +362,18 @@ def get_metrics(collection: Collection):
             f"Input the type of metrics you would like to view for Collection {collection.name}:\n" + 
             "[Average Complexity - COMP][Dynamic Writing - DYNA][Descriptive Writing - DESC][Word Saturation - WORD][Exit to menu - EXIT]\n"
         )
+        os.system('cls')
         if metric_type == "COMP":
             display_complexity(collection)
         if metric_type == "DYNA":
+            print("Generating verb usage metrics...")
             display_dynamics(collection)
         if metric_type == "DESC":
-            display_dynamics(collection)
+            print("Generating adjective usage metrics...")
+            display_descriptive(collection)
         if metric_type == "WORD":
             display_word_saturation(collection)
-
+        
 
 def subsumed_set(set_of_sets: list[list[Sentence]],
                  compared_index: int) -> bool:
@@ -388,9 +415,9 @@ sentences: list[str] = list(
         for paragraph in book.paragraphs))
 
 collection_name = input("Please input a name for this collection.\n")
-
+print("Please wait while metrics are compiled.")
 collection = Collection(collection_name)
-
+os.system('cls')
 # [foo(x) for x in iterable]
 mapped_sentences: list[Sentence] = [
     Sentence(sentence, i) for i, sentence in enumerate(sentences)
@@ -410,3 +437,4 @@ while term != "EXIT":
         multi_word_search(collection)
     if term == "METRIC":
         get_metrics(collection)
+    os.system('cls')
